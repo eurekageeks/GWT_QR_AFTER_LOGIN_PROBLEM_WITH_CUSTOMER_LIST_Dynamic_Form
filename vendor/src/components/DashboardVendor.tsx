@@ -30,7 +30,7 @@ export default function DashboardVendor() {
           <SidebarItem icon={Package} label="Menu" to="/dashboard/vendor/menu" />
           <SidebarItem icon={Package} label="Orders" to="/dashboard/vendor/orders" />
           <SidebarItem icon={Package} label="Customers" to="/dashboard/vendor/customerlists" />
-          <SidebarItem icon={Package} label="Dynamic Form" to="/dashboard/vendor/dynamic-form" />
+          <SidebarItem icon={Package} label="Business Profile" to="/dashboard/vendor/dynamic-form" />
         </nav>
 
         {/* BOTTOM LOGOUT (ALWAYS VISIBLE) */}

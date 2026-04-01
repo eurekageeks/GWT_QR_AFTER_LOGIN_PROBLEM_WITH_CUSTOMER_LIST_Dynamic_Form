@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import SaveIcon from "@mui/icons-material/Save";
 import InfoIcon from "@mui/icons-material/Info";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
@@ -20,6 +21,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import dynamicApi from "../dynamic-api/dynamic-api";
 import { Select, MenuItem, Checkbox, ListItemText } from "@mui/material";
+import { Snackbar, Alert } from "@mui/material";
 
 
 export default function DynamicForm() {
@@ -31,10 +33,11 @@ export default function DynamicForm() {
 
   const steps = [
     "Basic Details",
-    "Fees",
+    "Working Details",
     "Facilities",
     "Contact",
     "Upload Image",
+    "Documents Required", 
   ];
 const clinicServices = [
   "General Checkup",
@@ -58,10 +61,24 @@ const facilitiesOptions = [
 const [formData, setFormData] = useState<any>({
   services: [],
   facilities: [],
-  doctor_names: [""],   // ✅ array
-  owner_names: [""],    // ✅ array
-});
+  doctor_names: [""],
+  owner_names: [""],
 
+  opening_time: "",
+  closing_time: "",
+  working_days: [],
+  sunday_available: "",
+  available_24x7: "",
+  appointment_required: "",
+});
+const handleFileChange = (e: any, field: string) => {
+  const files = e.target.files;
+
+  setFormData((prev: any) => ({
+    ...prev,
+    [field]: files.length > 1 ? Array.from(files) : files[0],
+  }));
+};
 const handleResetDraft = () => {
   localStorage.removeItem("formDraft");
 
@@ -88,7 +105,65 @@ const handleArrayChange = (index: number, value: string, field: string) => {
   });
 };
 
+const [errorMsg, setErrorMsg] = useState("");
+const [openError, setOpenError] = useState(false);
+const validateStep = () => {
+  // ===== STEP 0 =====
+  if (activeStep === 0) {
+    if (isClinic) {
+      if (!formData.clinic_name) return "Clinic Name is required";
+      if (!formData.clinic_type) return "Clinic Type is required";
 
+      if (!formData.doctor_names?.some((d: string) => d.trim()))
+        return "At least one Doctor is required";
+
+      if (!formData.owner_names?.some((o: string) => o.trim()))
+        return "At least one Owner is required";
+
+      if (!formData.contact_person) return "Contact Person is required";
+      if (!formData.mobile) return "Mobile Number is required";
+      if (!formData.email) return "Email is required";
+    } else {
+      if (!formData.name) return "Name is required";
+      if (!formData.description) return "Description is required";
+    }
+  }
+
+  // ===== STEP 1 =====
+  if (activeStep === 1) {
+    if (!formData.opening_time) return "Opening Time is required";
+    if (!formData.closing_time) return "Closing Time is required";
+    if (!formData.working_days?.length) return "Select working days";
+    if (!formData.sunday_available) return "Select Sunday availability";
+    if (!formData.available_24x7) return "Select 24x7 availability";
+    if (!formData.appointment_required) return "Select appointment requirement";
+  }
+
+  // ===== STEP 2 =====
+  if (activeStep === 2) {
+    if (!formData.facilities?.length) return "Select at least one facility";
+  }
+
+  // ===== STEP 3 =====
+  if (activeStep === 3) {
+    if (!formData.phone) return "Phone number is required";
+    if (!formData.clinic_address) return "Address is required";
+    if (!formData.city) return "City is required";
+    if (!formData.state) return "State is required";
+    if (!formData.pincode) return "Pincode is required";
+  }
+
+  // ===== STEP 4 =====
+  if (activeStep === 4) {
+    if (!formData.clinic_logo) return "Clinic logo is required";
+    if (!formData.clinic_photos?.length) return "Upload clinic photos";
+    if (!formData.doctor_photo) return "Doctor photo is required";
+  }
+
+  // STEP 5 → optional docs (skip validation)
+
+  return null;
+};
 
 const handleAddField = (field: string) => {
   setFormData({
@@ -199,9 +274,16 @@ useEffect(() => {
 }, []);
 
   const handleNext = () => {
-    setActiveStep((prev) => prev + 1);
-  };
+  const error = validateStep();
 
+  if (error) {
+    setErrorMsg(error);
+    setOpenError(true);
+    return;
+  }
+
+  setActiveStep((prev) => prev + 1);
+};
   const handleBack = () => {
     setActiveStep((prev) => prev - 1);
   };
@@ -260,53 +342,70 @@ const handleDocuments = (e: any) => {
 
       <Grid container spacing={3}>
 
-        {/* ================= CLINIC DETAILS ================= */}
+        {/* ================= CLINIC ================= */}
         {isClinic && (
           <>
+            {/* ===== Clinic Details ===== */}
             <Grid item xs={12}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography fontWeight="bold" mb={2} color="#e91e63">
                   Clinic Details
                 </Typography>
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                {/* Clinic Name */}
+                <Grid container spacing={2} alignItems="center" mb={1}>
+                  <Grid item xs={4}>
+                    <Typography>Clinic Name</Typography>
+                  </Grid>
+                  <Grid item xs={8}>
                     <TextField
                       fullWidth
-                      label="Clinic Name"
+                      size="small"
                       name="clinic_name"
                       value={formData.clinic_name || ""}
                       onChange={handleChange}
                     />
                   </Grid>
+                </Grid>
 
-                  <Grid item xs={12} md={6}>
+                {/* Clinic Type */}
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={4}>
+                    <Typography>Clinic Type</Typography>
+                  </Grid>
+                  <Grid item xs={8}>
                     <Select
                       fullWidth
-                      displayEmpty
+                      size="small"
                       name="clinic_type"
                       value={formData.clinic_type || ""}
                       onChange={handleChange}
                     >
-                      <MenuItem value="">Select Clinic Type</MenuItem>
+                      <MenuItem value="">Select</MenuItem>
                       <MenuItem value="Dental">Dental</MenuItem>
                       <MenuItem value="Eye">Eye</MenuItem>
                       <MenuItem value="Skin">Skin</MenuItem>
-                      <MenuItem value="General Physician">
-                        General Physician
-                      </MenuItem>
-                      <MenuItem value="Physiotherapy">
-                        Physiotherapy
-                      </MenuItem>
+                      <MenuItem value="General Physician">General Physician</MenuItem>
+                      <MenuItem value="Physiotherapy">Physiotherapy</MenuItem>
                       <MenuItem value="Ayurveda">Ayurveda</MenuItem>
                       <MenuItem value="Homeopathy">Homeopathy</MenuItem>
                     </Select>
                   </Grid>
                 </Grid>
+                <Snackbar
+  open={openError}
+  autoHideDuration={3000}
+  onClose={() => setOpenError(false)}
+  anchorOrigin={{ vertical: "top", horizontal: "right" }}
+>
+  <Alert severity="error" variant="filled">
+    {errorMsg}
+  </Alert>
+</Snackbar>
               </Paper>
             </Grid>
 
-            {/* ================= DOCTOR TABLE ================= */}
+            {/* ===== Doctor List ===== */}
             <Grid item xs={12}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography fontWeight="bold" mb={2} color="#e91e63">
@@ -314,18 +413,19 @@ const handleDocuments = (e: any) => {
                 </Typography>
 
                 {(formData.doctor_names || []).map((doc, index) => (
-                  <Grid container spacing={2} key={index} mb={1}>
-                    <Grid item xs={10}>
+                  <Grid container spacing={2} alignItems="center" key={index} mb={1}>
+                    
+                    <Grid item xs={4}>
+                      <Typography>Doctor {index + 1}</Typography>
+                    </Grid>
+
+                    <Grid item xs={6}>
                       <TextField
                         fullWidth
-                        label={`Doctor ${index + 1}`}
+                        size="small"
                         value={doc}
                         onChange={(e) =>
-                          handleArrayChange(
-                            index,
-                            e.target.value,
-                            "doctor_names"
-                          )
+                          handleArrayChange(index, e.target.value, "doctor_names")
                         }
                       />
                     </Grid>
@@ -339,9 +439,10 @@ const handleDocuments = (e: any) => {
                           handleRemoveField(index, "doctor_names")
                         }
                       >
-                        Remove
+                        X
                       </Button>
                     </Grid>
+
                   </Grid>
                 ))}
 
@@ -355,7 +456,7 @@ const handleDocuments = (e: any) => {
               </Paper>
             </Grid>
 
-            {/* ================= OWNER TABLE ================= */}
+            {/* ===== Owner List ===== */}
             <Grid item xs={12}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography fontWeight="bold" mb={2} color="#e91e63">
@@ -363,18 +464,19 @@ const handleDocuments = (e: any) => {
                 </Typography>
 
                 {(formData.owner_names || []).map((owner, index) => (
-                  <Grid container spacing={2} key={index} mb={1}>
-                    <Grid item xs={10}>
+                  <Grid container spacing={2} alignItems="center" key={index} mb={1}>
+                    
+                    <Grid item xs={4}>
+                      <Typography>Owner {index + 1}</Typography>
+                    </Grid>
+
+                    <Grid item xs={6}>
                       <TextField
                         fullWidth
-                        label={`Owner ${index + 1}`}
+                        size="small"
                         value={owner}
                         onChange={(e) =>
-                          handleArrayChange(
-                            index,
-                            e.target.value,
-                            "owner_names"
-                          )
+                          handleArrayChange(index, e.target.value, "owner_names")
                         }
                       />
                     </Grid>
@@ -388,9 +490,10 @@ const handleDocuments = (e: any) => {
                           handleRemoveField(index, "owner_names")
                         }
                       >
-                        Remove
+                        X
                       </Button>
                     </Grid>
+
                   </Grid>
                 ))}
 
@@ -404,62 +507,47 @@ const handleDocuments = (e: any) => {
               </Paper>
             </Grid>
 
-            {/* ================= CONTACT DETAILS ================= */}
+            {/* ===== Contact ===== */}
             <Grid item xs={12}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography fontWeight="bold" mb={2} color="#e91e63">
                   Contact Details
                 </Typography>
 
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Contact Person"
-                      name="contact_person"
-                      value={formData.contact_person || ""}
-                      onChange={handleChange}
-                    />
-                  </Grid>
+                {[
+                  { label: "Contact Person", name: "contact_person" },
+                  { label: "Mobile Number", name: "mobile" },
+                  { label: "Alternate Mobile", name: "alternate_mobile" },
+                  { label: "Email", name: "email" },
+                ].map((field) => (
+                  <Grid
+                    container
+                    spacing={2}
+                    alignItems="center"
+                    key={field.name}
+                    mb={1}
+                  >
+                    <Grid item xs={4}>
+                      <Typography>{field.label}</Typography>
+                    </Grid>
 
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Mobile Number"
-                      name="mobile"
-                      value={formData.mobile || ""}
-                      onChange={handleChange}
-                      inputProps={{ maxLength: 10 }}
-                    />
+                    <Grid item xs={8}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        name={field.name}
+                        value={formData[field.name] || ""}
+                        onChange={handleChange}
+                      />
+                    </Grid>
                   </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Alternate Mobile"
-                      name="alternate_mobile"
-                      value={formData.alternate_mobile || ""}
-                      onChange={handleChange}
-                    />
-                  </Grid>
-
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Email"
-                      name="email"
-                      value={formData.email || ""}
-                      onChange={handleChange}
-                      type="email"
-                    />
-                  </Grid>
-                </Grid>
+                ))}
               </Paper>
             </Grid>
           </>
         )}
 
-        {/* ================= DEFAULT CATEGORY ================= */}
+        {/* ===== DEFAULT ===== */}
         {!isClinic && (
           <Grid item xs={12}>
             <Paper sx={{ p: 3, borderRadius: 3 }}>
@@ -467,57 +555,159 @@ const handleDocuments = (e: any) => {
                 Basic Details
               </Typography>
 
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Name"
-                    name="name"
-                    value={formData.name || ""}
-                    onChange={handleChange}
-                  />
-                </Grid>
+              {[
+                { label: "Name", name: "name" },
+                { label: "Description", name: "description" },
+              ].map((field) => (
+                <Grid
+                  container
+                  spacing={2}
+                  alignItems="center"
+                  key={field.name}
+                  mb={1}
+                >
+                  <Grid item xs={4}>
+                    <Typography>{field.label}</Typography>
+                  </Grid>
 
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Description"
-                    name="description"
-                    value={formData.description || ""}
-                    onChange={handleChange}
-                  />
+                  <Grid item xs={8}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      name={field.name}
+                      value={formData[field.name] || ""}
+                      onChange={handleChange}
+                    />
+                  </Grid>
                 </Grid>
-              </Grid>
+              ))}
             </Paper>
           </Grid>
         )}
       </Grid>
     </>
   );
-   case 1:
+ case 1:
   return (
     <Box>
-      <Typography variant="h6" fontWeight="bold" mb={2} display="flex" alignItems="center">
-        <AttachMoneyIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Fees Details
+      <Typography
+        variant="h6"
+        fontWeight="bold"
+        mb={2}
+        display="flex"
+        alignItems="center"
+      >
+        <LocalHospitalIcon sx={{ color: "#e91e63", mr: 1 }} />
+        Working Details
       </Typography>
 
-      <TextField
-        fullWidth
-        label="Consultation Fees"
-        name="fees"
-        value={formData.fees || ""}
-        onChange={handleChange}
-        variant="outlined"
-        placeholder="Enter fees (e.g. 500)"
-        sx={{
-          background: "#fff",
-          borderRadius: 2,
-        }}
-        InputProps={{
-          startAdornment: <AttachMoneyIcon sx={{ mr: 1, color: "#999" }} />,
-        }}
-      />
+      <Grid container spacing={2}>
+
+        {/* Opening Time */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Opening Time"
+            name="opening_time"
+            type="time"
+            value={formData.opening_time || ""}
+            onChange={handleChange}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Grid>
+
+        {/* Closing Time */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Closing Time"
+            name="closing_time"
+            type="time"
+            value={formData.closing_time || ""}
+            onChange={handleChange}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Grid>
+
+        {/* Working Days */}
+        <Grid item xs={12}>
+          <Select
+            multiple
+            fullWidth
+            displayEmpty
+            value={formData.working_days || []}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                working_days: e.target.value,
+              })
+            }
+          >
+            {[
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday",
+            ].map((day) => (
+              <MenuItem key={day} value={day}>
+                <Checkbox
+                  checked={formData.working_days?.includes(day)}
+                />
+                <ListItemText primary={day} />
+              </MenuItem>
+            ))}
+          </Select>
+        </Grid>
+
+        {/* Sunday Available */}
+        <Grid item xs={12} md={4}>
+          <Select
+            fullWidth
+            displayEmpty
+            name="sunday_available"
+            value={formData.sunday_available || ""}
+            onChange={handleChange}
+          >
+            <MenuItem value="">Sunday Available?</MenuItem>
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        </Grid>
+
+        {/* 24x7 Available */}
+        <Grid item xs={12} md={4}>
+          <Select
+            fullWidth
+            displayEmpty
+            name="available_24x7"
+            value={formData.available_24x7 || ""}
+            onChange={handleChange}
+          >
+            <MenuItem value="">24x7 Available?</MenuItem>
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        </Grid>
+
+        {/* Appointment Required */}
+        <Grid item xs={12} md={4}>
+          <Select
+            fullWidth
+            displayEmpty
+            name="appointment_required"
+            value={formData.appointment_required || ""}
+            onChange={handleChange}
+          >
+            <MenuItem value="">Appointment Required?</MenuItem>
+            <MenuItem value="Yes">Yes</MenuItem>
+            <MenuItem value="No">No</MenuItem>
+          </Select>
+        </Grid>
+
+      </Grid>
     </Box>
   );
    case 2:
@@ -572,15 +762,22 @@ const handleDocuments = (e: any) => {
       </Select>
     </Box>
   );
-    case 3:
+   case 3:
   return (
     <Box>
-      <Typography variant="h6" fontWeight="bold" mb={2} display="flex" alignItems="center">
+      <Typography
+        variant="h6"
+        fontWeight="bold"
+        mb={2}
+        display="flex"
+        alignItems="center"
+      >
         <ContactPhoneIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Contact Details
+        Contact & Location Details
       </Typography>
 
       <Grid container spacing={2}>
+        {/* PHONE */}
         <Grid item xs={12} md={6}>
           <TextField
             fullWidth
@@ -588,88 +785,275 @@ const handleDocuments = (e: any) => {
             name="phone"
             value={formData.phone || ""}
             onChange={handleChange}
-            sx={{ background: "#fff", borderRadius: 2 }}
             inputProps={{ maxLength: 10 }}
           />
         </Grid>
 
+        {/* CLINIC ADDRESS */}
         <Grid item xs={12}>
           <TextField
             fullWidth
-            label="Address"
-            name="address"
-            value={formData.address || ""}
+            label="Clinic Address"
+            name="clinic_address"
+            value={formData.clinic_address || ""}
             onChange={handleChange}
             multiline
-            rows={3}
-            sx={{ background: "#fff", borderRadius: 2 }}
+            rows={2}
+          />
+        </Grid>
+
+        {/* AREA */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Area / Locality"
+            name="area"
+            value={formData.area || ""}
+            onChange={handleChange}
+          />
+        </Grid>
+
+        {/* CITY */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="City"
+            name="city"
+            value={formData.city || ""}
+            onChange={handleChange}
+          />
+        </Grid>
+
+        {/* STATE */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="State"
+            name="state"
+            value={formData.state || ""}
+            onChange={handleChange}
+          />
+        </Grid>
+
+        {/* PINCODE */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Pincode"
+            name="pincode"
+            value={formData.pincode || ""}
+            onChange={handleChange}
+            inputProps={{ maxLength: 6 }}
+          />
+        </Grid>
+
+        {/* LANDMARK */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Landmark"
+            name="landmark"
+            value={formData.landmark || ""}
+            onChange={handleChange}
+          />
+        </Grid>
+
+        {/* LATITUDE */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Latitude"
+            name="latitude"
+            value={formData.latitude || ""}
+            onChange={handleChange}
+            placeholder="e.g. 28.6139"
+          />
+        </Grid>
+
+        {/* LONGITUDE */}
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Longitude"
+            name="longitude"
+            value={formData.longitude || ""}
+            onChange={handleChange}
+            placeholder="e.g. 77.2090"
           />
         </Grid>
       </Grid>
     </Box>
   );
-    case 4:
-      return (
-        <>
-          <Typography mb={2}>
-            <ImageIcon sx={{ color: "#e91e63", mr: 1 }} />
-            Upload & Services
-          </Typography>
+   case 4:
+  return (
+    <>
+      <Typography
+        variant="h6"
+        fontWeight="bold"
+        mb={2}
+        display="flex"
+        alignItems="center"
+      >
+        📁 Media Upload
+      </Typography>
 
-          {/* SERVICES */}
-          {isClinic && (
-  <>
-    <Typography mb={1}>Clinic Services</Typography>
-    <Grid container>
-      {clinicServices.map((service) => (
-        <Grid item xs={6} key={service}>
-          <label>
-            <input
-              type="checkbox"
-              checked={formData.services?.includes(service)}
-              onChange={() =>
-                handleCheckboxChange("services", service)
-              }
-            />
-            {service}
-          </label>
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3, borderRadius: 3 }}>
+
+            {/* ===== Clinic Logo ===== */}
+            <Grid container spacing={2} alignItems="center" mb={2}>
+              <Grid item xs={4}>
+                <Typography>Clinic Logo</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Button variant="outlined" component="label" fullWidth>
+                  Upload Logo
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleFileChange(e, "clinic_logo")
+                    }
+                  />
+                </Button>
+              </Grid>
+            </Grid>
+
+            {/* ===== Clinic Photos ===== */}
+            <Grid container spacing={2} alignItems="center" mb={2}>
+              <Grid item xs={4}>
+                <Typography>Clinic Photos</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Button variant="outlined" component="label" fullWidth>
+                  Upload Photos
+                  <input
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleFileChange(e, "clinic_photos")
+                    }
+                  />
+                </Button>
+              </Grid>
+            </Grid>
+
+            {/* ===== Doctor Photo ===== */}
+            <Grid container spacing={2} alignItems="center" mb={2}>
+              <Grid item xs={4}>
+                <Typography>Doctor Photo</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Button variant="outlined" component="label" fullWidth>
+                  Upload Doctor Photo
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleFileChange(e, "doctor_photo")
+                    }
+                  />
+                </Button>
+              </Grid>
+            </Grid>
+
+            {/* ===== Prescription Sample ===== */}
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={4}>
+                <Typography>Prescription Sample (Optional)</Typography>
+              </Grid>
+              <Grid item xs={8}>
+                <Button variant="outlined" component="label" fullWidth>
+                  Upload Prescription
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*,.pdf"
+                    onChange={(e) =>
+                      handleFileChange(e, "prescription_sample")
+                    }
+                  />
+                </Button>
+              </Grid>
+            </Grid>
+
+          </Paper>
         </Grid>
-      ))}
-    </Grid>
-  </>
-)}
-          {/* IMAGES */}
-          <Box mt={3}>
-            <Button component="label" startIcon={<CloudUploadIcon />}>
-              Upload Images
-              <input hidden type="file" multiple onChange={handleMultipleImages} />
-            </Button>
+      </Grid>
+    </>
+  );
+    case 5:
+  return (
+    <Box>
+      <Typography
+        variant="h6"
+        fontWeight="bold"
+        mb={2}
+        display="flex"
+        alignItems="center"
+      >
+        <AttachMoneyIcon sx={{ color: "#e91e63", mr: 1 }} />
+        Documents Required
+      </Typography>
 
-            {images.map((img, i) => (
-              <Typography key={i}>{img.name}</Typography>
-            ))}
-          </Box>
+      <Grid container spacing={2}>
 
-          {/* DOCUMENTS */}
-          <Box mt={3}>
-            <Button component="label">
-              Upload Documents (PDF)
-              <input
-                hidden
-                type="file"
-                multiple
-                accept="application/pdf"
-                onChange={handleDocuments}
-              />
-            </Button>
+        {[
+          "Clinic Registration Certificate",
+          "Doctor Medical License",
+          "PAN Card",
+          "Aadhaar Card",
+          "GST (optional)",
+        ].map((doc) => (
+          <Grid item xs={12} md={6} key={doc}>
+            <Paper
+              sx={{
+                p: 2,
+                borderRadius: 3,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Typography>{doc}</Typography>
 
-            {documents.map((doc, i) => (
-              <Typography key={i}>{doc.name}</Typography>
-            ))}
-          </Box>
-        </>
-      );
+              <Button component="label" size="small" variant="outlined">
+                Upload
+                <input
+                  hidden
+                  type="file"
+                  accept="application/pdf,image/*"
+                  onChange={(e: any) =>
+                    setDocuments([
+                      ...documents,
+                      ...Array.from(e.target.files),
+                    ])
+                  }
+                />
+              </Button>
+            </Paper>
+          </Grid>
+        ))}
 
+      </Grid>
+
+      {/* Uploaded Files */}
+      <Box mt={3}>
+        <Typography fontWeight="bold">Uploaded Documents:</Typography>
+
+        {documents.map((doc, i) => (
+          <Typography key={i} fontSize={13}>
+            {doc.name}
+          </Typography>
+        ))}
+      </Box>
+    </Box>
+  );
     default:
       return null;
   }
@@ -764,35 +1148,62 @@ const handleDocuments = (e: any) => {
 >
   {/* LEFT SIDE */}
   <Box>
-  <Button
-    variant="outlined"
-    disabled={activeStep === 0}
-    onClick={handleBack}
-    sx={{ borderRadius: 2, mr: 2 }}
-  >
-    Back
-  </Button>
+    <Button
+      variant="outlined"
+      disabled={activeStep === 0}
+      onClick={handleBack}
+      sx={{ borderRadius: 2, mr: 2 }}
+    >
+      Back
+    </Button>
 
-  <Button
-    variant="outlined"
-    onClick={handleSaveDraft}
-    sx={{ borderRadius: 2, mr: 2 }}
-  >
-    Save Draft
-  </Button>
+    <Button
+      variant="outlined"
+      onClick={handleSaveDraft}
+      sx={{ borderRadius: 2, mr: 2 }}
+    >
+      Save Draft
+    </Button>
 
-  {/* ✅ NEW RESET BUTTON */}
-  <Button
-    variant="outlined"
-    color="error"
-    onClick={handleResetDraft}
-    sx={{ borderRadius: 2 }}
-  >
-    Reset Draft
-  </Button>
-    </Box>
+    <Button
+      variant="outlined"
+      color="error"
+      onClick={handleResetDraft}
+      sx={{ borderRadius: 2 }}
+    >
+      Reset Draft
+    </Button>
+  </Box>
+
+  {/* RIGHT SIDE */}
+  <Box>
+    {activeStep < steps.length - 1 && (
+      <Button
+        variant="contained"
+        onClick={handleNext}
+        sx={{
+          borderRadius: 2,
+          background: "linear-gradient(90deg, #e91e63, #9c27b0)",
+        }}
+      >
+        Next →
+      </Button>
+    )}
+
+    {activeStep === steps.length - 1 && (
+      <Button
+        variant="contained"
+        color="success"
+        onClick={handleSubmit}
+        sx={{ borderRadius: 2 }}
+      >
+        Submit ✅
+      </Button>
+    )}
+  </Box>
+</Box>
     {/* RIGHT SIDE */}
-</Box>    </Paper>
+   </Paper>
     </Box>
   );
 }
