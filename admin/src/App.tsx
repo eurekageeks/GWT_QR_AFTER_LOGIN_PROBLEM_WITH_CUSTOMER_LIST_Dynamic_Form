@@ -36,7 +36,8 @@ import DynamicForm from "./components/DynamicForm";
 // Auth
 import Login from "./components/Login";
 import Signup from "./components/Signup";
-
+import ClinicDashboard from "./components/ClinicDashboard";
+import ClinicDetails from "./components/ClinicDetails";
 
 export default function App() {
   return (
@@ -96,7 +97,8 @@ export default function App() {
         <Route path="menu" element={<FoodCategoryApp />} />
         <Route path="orders" element={<Orders />} />
         <Route path="customerlists" element={<CustomerLists />} />
-        <Route path="dynamic-form" element={<DynamicForm />} />
+         <Route path="dynamic-form" element={<DynamicForm />} />
+         <Route path="clinic/:id" element={<ClinicDetails />} />
       </Route>
 
       {/* CUSTOMER DASHBOARD */}

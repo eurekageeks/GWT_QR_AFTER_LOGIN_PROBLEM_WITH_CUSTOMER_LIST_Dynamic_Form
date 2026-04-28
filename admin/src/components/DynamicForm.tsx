@@ -22,13 +22,15 @@ import { useAuth } from "../context/AuthContext";
 import dynamicApi from "../dynamic-api/dynamic-api";
 import { Select, MenuItem, Checkbox, ListItemText } from "@mui/material";
 import { Snackbar, Alert } from "@mui/material";
-
+import ClinicImagesForm from "../components/clinic-forms/ClinicImagesForm";
+import Rating from "@mui/material/Rating";
 
 export default function DynamicForm() {
   const { user } = useAuth();
 
   const [activeStep, setActiveStep] = useState(0);
-  
+  const [openSuccess, setOpenSuccess] = useState(false);
+const [successMsg, setSuccessMsg] = useState("");
  
 
   const steps = [
@@ -39,6 +41,7 @@ export default function DynamicForm() {
     "Upload Image",
     "Documents Required", 
   ];
+  
 const clinicServices = [
   "General Checkup",
   "Dental Treatment",
@@ -57,6 +60,18 @@ const facilitiesOptions = [
   "AC Rooms",
   "Online Consultation",
 ];
+const amenitiesOptions = [
+  "Parking",
+  "Pharmacy",
+  "Ambulance",
+  "Waiting Lounge",
+  "Online Payment",
+  "Wheelchair Access",
+  "AC Rooms",
+  "Lab Facility",
+  "Digital Reports",
+  "Sanitized Environment"
+];
 
 const [formData, setFormData] = useState<any>({
   services: [],
@@ -70,7 +85,16 @@ const [formData, setFormData] = useState<any>({
   sunday_available: "",
   available_24x7: "",
   appointment_required: "",
+  patient_reviews: [
+      {
+        
+        comment: "",
+        rating: 0,
+        verified: true,
+      },
+    ],
 });
+
 const handleFileChange = (e: any, field: string) => {
   const files = e.target.files;
 
@@ -79,34 +103,16 @@ const handleFileChange = (e: any, field: string) => {
     [field]: files.length > 1 ? Array.from(files) : files[0],
   }));
 };
-const handleResetDraft = () => {
-  localStorage.removeItem("formDraft");
 
-  setFormData({
-    services: [],
-    facilities: [],
-    doctor_names: [""],
-    owner_names: [""],
+const fileToBase64 = (file: File) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
   });
 
-  setImages([]);
-  setDocuments([]);
-  setActiveStep(0);
-
-  alert("Draft cleared ❌");
-};
-const handleArrayChange = (index: number, value: string, field: string) => {
-  const updated = [...formData[field]];
-  updated[index] = value;
-
-  setFormData({
-    ...formData,
-    [field]: updated,
-  });
-};
-
-const [errorMsg, setErrorMsg] = useState("");
-const [openError, setOpenError] = useState(false);
 const validateStep = () => {
   // ===== STEP 0 =====
   if (activeStep === 0) {
@@ -243,11 +249,17 @@ const handleCheckboxChange = (name: string, value: string) => {
     });
   };
 
- const handleSaveDraft = () => {
+ const handleSaveDraft = async () => {
+  const base64Images = await Promise.all(
+    images.map((file) =>
+      file instanceof File ? fileToBase64(file) : file
+    )
+  );
+
   const draft = {
     formData,
-    images,
-    documents,
+    images: base64Images, // ✅ store base64
+    documents: [],
     category: getCategory(),
     sub_category: getSubCategory(),
   };
@@ -255,8 +267,75 @@ const handleCheckboxChange = (name: string, value: string) => {
   localStorage.setItem("formDraft", JSON.stringify(draft));
   alert("Draft saved ✅");
 };
+const handleResetDraft = () => {
+  localStorage.removeItem("formDraft");
+
+  setFormData({
+    services: [],
+    facilities: [],
+    doctor_names: [""],
+    owner_names: [""],
+    patient_reviews: [
+      {
+        comment: "",
+        rating: 0,
+        verified: true,
+      },
+    ],
+  });
+
+  setImages([]);
+  setDocuments([]);
+  setActiveStep(0);
+
+  alert("Draft cleared ❌");
+};
+const initialFormData = {
+  services: [],
+  facilities: [],
+  doctor_names: [""],
+  owner_names: [""],
+  patient_reviews: [
+    {
+      comment: "",
+      rating: 0,
+      verified: true,
+    },
+  ],
+};
+const resetForm = () => {
+  setFormData(initialFormData);
+  setImages([]);
+  setDocuments([]);
+  setDoctors([
+    {
+      name: "",
+      email: "",
+      mobile: "",
+      address: "",
+      qualification: "",
+      specialization: "",
+      experience: "",
+      fee: "",
+      available_days: [],
+      photo: "",
+      timings: {
+        weekdays: { start: "", end: "" },
+        saturday: { start: "", end: "" },
+        sunday: { start: "", end: "" },
+        emergency: false,
+      },
+    },
+  ]);
+
+  setActiveStep(0);
+
+  // optional: clear local draft also
+  localStorage.removeItem("formDraft");
+};
 useEffect(() => {
   const saved = localStorage.getItem("formDraft");
+
   if (saved) {
     const parsed = JSON.parse(saved);
 
@@ -265,14 +344,23 @@ useEffect(() => {
       facilities: [],
       doctor_names: [""],
       owner_names: [""],
-      ...parsed.formData, // ✅ overwrite if exists
+      ...parsed.formData,
+      patient_reviews:
+        parsed.formData?.patient_reviews?.length > 0
+          ? parsed.formData.patient_reviews
+          : [
+              {
+                comment: "",
+                rating: 0,
+                verified: true,
+              },
+            ],
     });
 
-    setImages(parsed.images || []);
-    setDocuments(parsed.documents || []);
+    setImages(parsed.images || []); // ✅ base64 strings
+    setDocuments([]);
   }
 }, []);
-
   const handleNext = () => {
   const error = validateStep();
 
@@ -288,922 +376,1023 @@ useEffect(() => {
     setActiveStep((prev) => prev - 1);
   };
  const handleMultipleImages = (e: any) => {
-  setImages([...images, ...Array.from(e.target.files)]);
+  const files = Array.from(e.target.files);
+  setImages((prev) => [...prev, ...files]);
 };
 
 
 const handleDocuments = (e: any) => {
   setDocuments([...documents, ...Array.from(e.target.files)]);
 };
-  const handleSubmit = async () => {
-  const payload = new FormData();
-
-  payload.append("category", getCategory());
-  payload.append("sub_category", getSubCategory());
-  payload.append("data", JSON.stringify(formData));
-
-  images.forEach((img) => payload.append("images", img));
-  documents.forEach((doc) => payload.append("documents", doc));
-
+const handleSubmit = async () => {
   try {
-    await dynamicApi.post("/dynamic/business", payload, {
-      headers: { "Content-Type": "multipart/form-data" },
+    const payload = new FormData();
+
+    const data = {
+      clinic_name: formData.clinic_name,
+      clinic_type: formData.clinic_type,
+      phone: formData.phone,
+      email: formData.email,
+      whatsapp: formData.whatsapp,
+      website: formData.website,
+      clinic_address: formData.clinic_address,
+      city: formData.city,
+      state: formData.state,
+      pincode: formData.pincode,
+      services: formData.services,
+      amenities: formData.amenities,
+      payment_methods: formData.payment_methods,
+      insurance: formData.insurance,
+      doctors: doctors,
+      patient_reviews: formData.patient_reviews,
+      about_clinic: formData.about_clinic,
+      clinic_description: formData.clinic_description,
+      specialization: formData.specialization,
+      years_of_experience: formData.years_of_experience,
+    };
+
+    payload.append("category", getCategory());
+    payload.append("sub_category", getSubCategory());
+    payload.append("data", JSON.stringify(data));
+
+    if (formData.clinic_logo instanceof File) {
+      payload.append("image", formData.clinic_logo);
+    }
+
+    images.forEach((img) => {
+      if (img instanceof File) {
+        payload.append("images", img);
+      }
     });
 
-    alert("Saved successfully ✅");
+    await dynamicApi.post("/dynamic/business", payload);
 
-    setFormData({ services: [], facilities: [] });
-    setImages([]);
-    setDocuments([]);
-    setActiveStep(0);
+    // ✅ SUCCESS POPUP
+    setSuccessMsg("Form submitted successfully 🎉");
+    setOpenSuccess(true);
 
-  } catch (err) {
-    console.error(err);
-    alert("Error saving data ❌");
+    // ✅ RESET FORM AFTER SUCCESS
+    resetForm();
+
+  } catch (error) {
+    console.error("Submit Error:", error);
+
+    setErrorMsg("Submission failed ❌");
+    setOpenError(true);
   }
 };
+  const handleReviewChange = (index: number, field: string, value: any) => {
+  const updated = [...formData.patient_reviews];
+  updated[index][field] = value;
 
-  const renderStepContent = () => {
-  switch (activeStep) {
+  setFormData({
+    ...formData,
+    patient_reviews: updated,
+  });
+};
 
-  case 0:
+const addReview = () => {
+  setFormData({
+    ...formData,
+    patient_reviews: [
+      ...formData.patient_reviews,
+      {
+        
+        comment: "",
+        rating: 0,
+        verified: false,
+      },
+    ],
+  });
+};
+
+const removeReview = (index: number) => {
+  const updated = [...formData.patient_reviews];
+  updated.splice(index, 1);
+
+  setFormData({
+    ...formData,
+    patient_reviews: updated,
+  });
+};
+const [doctors, setDoctors] = useState([
+  {
+    name: "",
+    email: "",
+    mobile: "",
+    address: "",
+    qualification: "",
+    specialization: "",
+    experience: "",
+    fee: "",
+    available_days: [],
+    photo: "",
+    timings: {
+      weekdays: { start: "", end: "" },
+      saturday: { start: "", end: "" },
+      sunday: { start: "", end: "" },
+      emergency: false,
+    },
+  },
+]);
+const handleTimingChange = (
+  index: number,
+  day: string,
+  field: string,
+  value: any
+) => {
+  const updated = [...doctors];
+  updated[index].timings[day][field] = value;
+  setDoctors(updated);
+};
+
+const handleEmergencyToggle = (index: number) => {
+  const updated = [...doctors];
+  updated[index].timings.emergency =
+    !updated[index].timings.emergency;
+  setDoctors(updated);
+};
+const handleDoctorChange = (index: number, field: string, value: any) => {
+  const updated = [...doctors];
+  updated[index][field] = value;
+  setDoctors(updated);
+};
+const addDoctor = () => {
+  setDoctors([
+    ...doctors,
+    {
+      name: "",
+      email: "",
+      mobile: "",
+      address: "",
+      qualification: "",
+      specialization: "",
+      experience: "",
+      fee: "",
+      available_days: "",
+      photo: "",
+    },
+  ]);
+};
+const removeDoctor = (index: number) => {
+  const updated = [...doctors];
+  updated.splice(index, 1);
+  setDoctors(updated);
+};
+const paymentOptions = [
+  "Cash",
+  "UPI",
+  "Credit/Debit Card",
+  "Net Banking",
+];
+
+const insuranceOptions = [
+  "Max Bupa",
+  "ICICI Lombard",
+  "Star Health",
+  "Mediclaim Accepted",
+];
   return (
-    <>
-      <Typography
-        variant="h6"
-        fontWeight="bold"
-        mb={2}
-        display="flex"
-        alignItems="center"
+  <Box
+    sx={{
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #fce4ec, #e3f2fd)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      p: 2,
+    }}
+  >
+    <Paper
+      elevation={6}
+      sx={{
+        width: "100%",
+        maxWidth: 900,
+        p: 4,
+        borderRadius: 4,
+      }}
+    >
+      {/* HEADER */}
+      <Box
+        sx={{
+          p: 2,
+          mb: 3,
+          borderRadius: 3,
+          background: "linear-gradient(90deg, #e91e63, #9c27b0)",
+          color: "#fff",
+          textAlign: "center",
+        }}
       >
-        <InfoIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Basic Information
-      </Typography>
+        <Typography variant="h5" fontWeight="bold">
+          {getCategory()}
+        </Typography>
 
-      <Grid container spacing={3}>
+        <Typography variant="body2">
+          {getSubCategory()}
+        </Typography>
+      </Box>
+<Typography variant="h6" fontWeight="bold" mt={4} mb={2}>
+  Upload Clinic Logo
+</Typography>
 
-        {/* ================= CLINIC ================= */}
-        {isClinic && (
-          <>
-            {/* ===== Clinic Details ===== */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3, borderRadius: 3 }}>
-                <Typography fontWeight="bold" mb={2} color="#e91e63">
-                  Clinic Details
-                </Typography>
+<Paper sx={{ p: 3, borderRadius: 2, border: "1px solid #e0e0e0" }}>
 
-                {/* Clinic Name */}
-                <Grid container spacing={2} alignItems="center" mb={1}>
-                  <Grid item xs={4}>
-                    <Typography>Clinic Name</Typography>
-                  </Grid>
-                  <Grid item xs={8}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      name="clinic_name"
-                      value={formData.clinic_name || ""}
-                      onChange={handleChange}
-                    />
-                  </Grid>
-                </Grid>
+ <Button component="label" variant="outlined" fullWidth>
+  Upload Logo
+ <input
+  hidden
+  type="file"
+  accept="image/*"
+  onChange={(e: any) => {
+    const file = e.target.files[0];
 
-                {/* Clinic Type */}
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={4}>
-                    <Typography>Clinic Type</Typography>
-                  </Grid>
-                  <Grid item xs={8}>
-                    <Select
-                      fullWidth
-                      size="small"
-                      name="clinic_type"
-                      value={formData.clinic_type || ""}
-                      onChange={handleChange}
-                    >
-                      <MenuItem value="">Select</MenuItem>
-                      <MenuItem value="Dental">Dental</MenuItem>
-                      <MenuItem value="Eye">Eye</MenuItem>
-                      <MenuItem value="Skin">Skin</MenuItem>
-                      <MenuItem value="General Physician">General Physician</MenuItem>
-                      <MenuItem value="Physiotherapy">Physiotherapy</MenuItem>
-                      <MenuItem value="Ayurveda">Ayurveda</MenuItem>
-                      <MenuItem value="Homeopathy">Homeopathy</MenuItem>
-                    </Select>
-                  </Grid>
-                </Grid>
-                <Snackbar
-  open={openError}
-  autoHideDuration={3000}
-  onClose={() => setOpenError(false)}
-  anchorOrigin={{ vertical: "top", horizontal: "right" }}
->
-  <Alert severity="error" variant="filled">
-    {errorMsg}
-  </Alert>
-</Snackbar>
-              </Paper>
-            </Grid>
+    if (file) {
+      setFormData((prev: any) => ({
+        ...prev,
+        clinic_logo: file, // ✅ STORE FILE, NOT BASE64
+      }));
+    }
+  }}
+/>
+</Button>
+  {/* Preview */}
+  {formData.clinic_logo && (
+  <Box mt={2} textAlign="center">
+    <img
+      src={
+        typeof formData.clinic_logo === "string"
+          ? formData.clinic_logo
+          : URL.createObjectURL(formData.clinic_logo)
+      }
+      alt="logo"
+      style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10 }}
+    />
 
-            {/* ===== Doctor List ===== */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3, borderRadius: 3 }}>
-                <Typography fontWeight="bold" mb={2} color="#e91e63">
-                  Doctor List
-                </Typography>
+    <Button
+      color="error"
+      onClick={() =>
+        setFormData((prev: any) => ({
+          ...prev,
+          clinic_logo: null,
+        }))
+      }
+    >
+      Remove
+    </Button>
+  </Box>
+)}
+</Paper>
+      
 
-                {(formData.doctor_names || []).map((doc, index) => (
-                  <Grid container spacing={2} alignItems="center" key={index} mb={1}>
-                    
-                    <Grid item xs={4}>
-                      <Typography>Doctor {index + 1}</Typography>
-                    </Grid>
+{/* ================= CLINIC IMAGES ================= */}
 
-                    <Grid item xs={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        value={doc}
-                        onChange={(e) =>
-                          handleArrayChange(index, e.target.value, "doctor_names")
-                        }
-                      />
-                    </Grid>
+<Typography variant="h6" fontWeight="bold" mt={4} mb={2}>
+  Clinic Images
+</Typography>
 
-                    <Grid item xs={2}>
-                      <Button
-                        fullWidth
-                        color="error"
-                        variant="outlined"
-                        onClick={() =>
-                          handleRemoveField(index, "doctor_names")
-                        }
-                      >
-                        X
-                      </Button>
-                    </Grid>
+<Paper sx={{ p: 3, borderRadius: 2, border: "1px solid #e0e0e0" }}>
 
-                  </Grid>
-                ))}
+  {/* Upload Button */}
+  <Button
+    component="label"
+    variant="outlined"
+    fullWidth
+    sx={{ mb: 2 }}
+  >
+    Upload Clinic Images
+    <input
+      hidden
+      multiple
+      type="file"
+      accept="image/*"
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files) return;
 
-                <Button
-                  variant="contained"
-                  sx={{ mt: 1, background: "#e91e63" }}
-                  onClick={() => handleAddField("doctor_names")}
-                >
-                  + Add Doctor
-                </Button>
-              </Paper>
-            </Grid>
+        const files = Array.from(e.target.files) as File[];
 
-            {/* ===== Owner List ===== */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3, borderRadius: 3 }}>
-                <Typography fontWeight="bold" mb={2} color="#e91e63">
-                  Owner List
-                </Typography>
+        setImages((prev: any[]) => [...prev, ...files]); // ✅ supports File
+      }}
+    />
+  </Button>
 
-                {(formData.owner_names || []).map((owner, index) => (
-                  <Grid container spacing={2} alignItems="center" key={index} mb={1}>
-                    
-                    <Grid item xs={4}>
-                      <Typography>Owner {index + 1}</Typography>
-                    </Grid>
+  {/* Image Preview Grid */}
+  <Grid container spacing={2}>
+    {images.map((img: any, index: number) => (
+      <Grid size={{ xs: 6, md: 3 }} key={index}>
+        <Paper sx={{ p: 1, borderRadius: 2 }}>
 
-                    <Grid item xs={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        value={owner}
-                        onChange={(e) =>
-                          handleArrayChange(index, e.target.value, "owner_names")
-                        }
-                      />
-                    </Grid>
-
-                    <Grid item xs={2}>
-                      <Button
-                        fullWidth
-                        color="error"
-                        variant="outlined"
-                        onClick={() =>
-                          handleRemoveField(index, "owner_names")
-                        }
-                      >
-                        X
-                      </Button>
-                    </Grid>
-
-                  </Grid>
-                ))}
-
-                <Button
-                  variant="contained"
-                  sx={{ mt: 1, background: "#e91e63" }}
-                  onClick={() => handleAddField("owner_names")}
-                >
-                  + Add Owner
-                </Button>
-              </Paper>
-            </Grid>
-
-            {/* ===== Contact ===== */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3, borderRadius: 3 }}>
-                <Typography fontWeight="bold" mb={2} color="#e91e63">
-                  Contact Details
-                </Typography>
-
-                {[
-                  { label: "Contact Person", name: "contact_person" },
-                  { label: "Mobile Number", name: "mobile" },
-                  { label: "Alternate Mobile", name: "alternate_mobile" },
-                  { label: "Email", name: "email" },
-                ].map((field) => (
-                  <Grid
-                    container
-                    spacing={2}
-                    alignItems="center"
-                    key={field.name}
-                    mb={1}
-                  >
-                    <Grid item xs={4}>
-                      <Typography>{field.label}</Typography>
-                    </Grid>
-
-                    <Grid item xs={8}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        name={field.name}
-                        value={formData[field.name] || ""}
-                        onChange={handleChange}
-                      />
-                    </Grid>
-                  </Grid>
-                ))}
-              </Paper>
-            </Grid>
-          </>
-        )}
-
-        {/* ===== DEFAULT ===== */}
-        {!isClinic && (
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3, borderRadius: 3 }}>
-              <Typography fontWeight="bold" mb={2} color="#e91e63">
-                Basic Details
-              </Typography>
-
-              {[
-                { label: "Name", name: "name" },
-                { label: "Description", name: "description" },
-              ].map((field) => (
-                <Grid
-                  container
-                  spacing={2}
-                  alignItems="center"
-                  key={field.name}
-                  mb={1}
-                >
-                  <Grid item xs={4}>
-                    <Typography>{field.label}</Typography>
-                  </Grid>
-
-                  <Grid item xs={8}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      name={field.name}
-                      value={formData[field.name] || ""}
-                      onChange={handleChange}
-                    />
-                  </Grid>
-                </Grid>
-              ))}
-            </Paper>
-          </Grid>
-        )}
-      </Grid>
-    </>
-  );
- case 1:
-  return (
-    <Box>
-      <Typography
-        variant="h6"
-        fontWeight="bold"
-        mb={2}
-        display="flex"
-        alignItems="center"
-      >
-        <LocalHospitalIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Working Details
-      </Typography>
-
-      <Grid container spacing={2}>
-
-        {/* Opening Time */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Opening Time"
-            name="opening_time"
-            type="time"
-            value={formData.opening_time || ""}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
-          />
-        </Grid>
-
-        {/* Closing Time */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Closing Time"
-            name="closing_time"
-            type="time"
-            value={formData.closing_time || ""}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
-          />
-        </Grid>
-
-        {/* Working Days */}
-        <Grid item xs={12}>
-          <Select
-            multiple
-            fullWidth
-            displayEmpty
-            value={formData.working_days || []}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                working_days: e.target.value,
-              })
+          <img
+            src={
+              typeof img === "string"
+                ? img // ✅ base64 (after refresh)
+                : URL.createObjectURL(img) // ✅ file (before save)
             }
-          >
-            {[
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday",
-            ].map((day) => (
-              <MenuItem key={day} value={day}>
-                <Checkbox
-                  checked={formData.working_days?.includes(day)}
-                />
-                <ListItemText primary={day} />
-              </MenuItem>
-            ))}
-          </Select>
-        </Grid>
+            alt="clinic"
+            style={{
+              width: "100%",
+              height: 120,
+              objectFit: "cover",
+            }}
+          />
 
-        {/* Sunday Available */}
-        <Grid item xs={12} md={4}>
-          <Select
+          <Button
+            color="error"
             fullWidth
-            displayEmpty
-            name="sunday_available"
-            value={formData.sunday_available || ""}
-            onChange={handleChange}
+            onClick={() => {
+              const updated = [...images];
+              updated.splice(index, 1);
+              setImages(updated);
+            }}
           >
-            <MenuItem value="">Sunday Available?</MenuItem>
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </Select>
-        </Grid>
+            Remove
+          </Button>
 
-        {/* 24x7 Available */}
-        <Grid item xs={12} md={4}>
-          <Select
-            fullWidth
-            displayEmpty
-            name="available_24x7"
-            value={formData.available_24x7 || ""}
-            onChange={handleChange}
-          >
-            <MenuItem value="">24x7 Available?</MenuItem>
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </Select>
-        </Grid>
-
-        {/* Appointment Required */}
-        <Grid item xs={12} md={4}>
-          <Select
-            fullWidth
-            displayEmpty
-            name="appointment_required"
-            value={formData.appointment_required || ""}
-            onChange={handleChange}
-          >
-            <MenuItem value="">Appointment Required?</MenuItem>
-            <MenuItem value="Yes">Yes</MenuItem>
-            <MenuItem value="No">No</MenuItem>
-          </Select>
-        </Grid>
-
+        </Paper>
       </Grid>
-    </Box>
-  );
-   case 2:
-  return (
-    <Box>
-      <Typography variant="h6" fontWeight="bold" mb={2} display="flex" alignItems="center">
-        <LocalHospitalIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Facilities
-      </Typography>
+    ))}
+  </Grid>
 
+  {/* Add More Images */}
+  {images.length > 0 && (
+    <Button
+      component="label"
+      variant="contained"
+      sx={{ mt: 2 }}
+    >
+      Add More Images
+      <input
+        hidden
+        multiple
+        type="file"
+        accept="image/*"
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+          if (!e.target.files) return;
+
+          const files = Array.from(e.target.files) as File[];
+
+          setImages((prev: any[]) => [...prev, ...files]);
+        }}
+      />
+    </Button>
+  )}
+
+</Paper>
+    {/* ================= ABOUT CLINIC ================= */}
+<Paper
+  elevation={3}
+  sx={{
+    mt: 4,
+    p: 4,
+    borderRadius: 4,
+    backgroundColor: "#fafafa",
+  }}
+>
+  {/* Header */}
+  <Typography variant="h5" fontWeight="600" mb={1}>
+    About Clinic
+  </Typography>
+
+  <Typography variant="body2" color="text.secondary" mb={3}>
+    Provide basic information about your clinic
+  </Typography>
+
+  <Grid container spacing={3} direction="column">
+
+    {/* About Clinic */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="About Clinic"
+        name="about_clinic"
+        value={formData.about_clinic || ""}
+        onChange={handleChange}
+        placeholder="Short introduction about clinic"
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 2,
+            backgroundColor: "#fff",
+          },
+        }}
+      />
+    </Grid>
+
+    {/* Clinic Description */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        multiline
+        rows={8}
+        label="Clinic Description"
+        name="clinic_description"
+        value={formData.clinic_description || ""}
+        onChange={handleChange}
+        placeholder="Describe clinic services, facilities, and specialties"
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 2,
+            backgroundColor: "#fff",
+          },
+        }}
+      />
+    </Grid>
+
+    {/* Specialization */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="Specialization"
+        name="specialization"
+        value={formData.specialization || ""}
+        onChange={handleChange}
+        placeholder="Dental, Skin, Eye, etc."
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 2,
+            backgroundColor: "#fff",
+          },
+        }}
+      />
+    </Grid>
+
+    {/* Years of Experience */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        type="number"
+        label="Years of Experience"
+        name="years_of_experience"
+        value={formData.years_of_experience || ""}
+        onChange={handleChange}
+        sx={{
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 2,
+            backgroundColor: "#fff",
+          },
+        }}
+      />
+    </Grid>
+
+  </Grid>
+</Paper>
+{/* ================= DOCTORS SECTION ================= */}
+
+<Paper
+  elevation={3}
+  sx={{
+    mt: 4,
+    p: 4,
+    borderRadius: 4,
+    backgroundColor: "#fafafa",
+  }}
+>
+  {/* Header */}
+  <Typography variant="h5" fontWeight="600" mb={1}>
+    Doctors
+  </Typography>
+
+  <Typography variant="body2" color="text.secondary" mb={3}>
+    Add doctor details for your clinic
+  </Typography>
+
+  {doctors.map((doc: any, index: number) => (
+    <Paper
+      key={index}
+      sx={{
+        p: 3,
+        mb: 3,
+        borderRadius: 3,
+        backgroundColor: "#fff",
+        border: "1px solid #eee",
+      }}
+    >
+      <Grid container spacing={3} direction="column">
+
+        {/* Doctor Photo */}
+        <Grid item xs={12}>
+          <Button component="label" variant="outlined" fullWidth>
+            Upload Doctor Photo
+            <input
+              hidden
+              type="file"
+              accept="image/*"
+              onChange={(e: any) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    handleDoctorChange(index, "photo", reader.result);
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+          </Button>
+
+          {doc.photo && (
+            <Box mt={2} textAlign="center">
+              <img
+                src={doc.photo}
+                alt="doctor"
+                style={{
+                  width: 120,
+                  height: 120,
+                  objectFit: "cover",
+                  borderRadius: 10,
+                }}
+              />
+            </Box>
+          )}
+        </Grid>
+
+        {/* Doctor Name */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Doctor Name"
+            value={doc.name}
+            onChange={(e) =>
+              handleDoctorChange(index, "name", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Email */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Email ID"
+            value={doc.email}
+            onChange={(e) =>
+              handleDoctorChange(index, "email", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Mobile */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Mobile No"
+            value={doc.mobile}
+            onChange={(e) =>
+              handleDoctorChange(index, "mobile", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Address (Big Field) */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="Address"
+            value={doc.address}
+            onChange={(e) =>
+              handleDoctorChange(index, "address", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Qualification */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Qualification"
+            value={doc.qualification}
+            onChange={(e) =>
+              handleDoctorChange(index, "qualification", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Specialization */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Specialization"
+            value={doc.specialization}
+            onChange={(e) =>
+              handleDoctorChange(index, "specialization", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Experience */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            type="number"
+            label="Experience (Years)"
+            value={doc.experience}
+            onChange={(e) =>
+              handleDoctorChange(index, "experience", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+        {/* Fee */}
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            type="number"
+            label="Consultation Fee"
+            value={doc.fee}
+            onChange={(e) =>
+              handleDoctorChange(index, "fee", e.target.value)
+            }
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, background: "#fff" } }}
+          />
+        </Grid>
+
+    {/* Available Days */}
+    <Grid item xs={12}>
       <Select
         multiple
         fullWidth
-        value={formData.facilities || []}
+        value={doc.available_days || []}
         onChange={(e) =>
-          setFormData({
-            ...formData,
-            facilities: e.target.value as string[],
-          })
+          handleDoctorChange(index, "available_days", e.target.value)
         }
         displayEmpty
-        sx={{
-          background: "#fff",
-          borderRadius: 2,
-        }}
-        renderValue={(selected) => (
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-            {(selected as string[]).map((value) => (
-              <Box
-                key={value}
-                sx={{
-                  px: 1.5,
-                  py: 0.5,
-                  borderRadius: 2,
-                  background: "#e91e63",
-                  color: "#fff",
-                  fontSize: 12,
-                }}
-              >
-                {value}
-              </Box>
-            ))}
-          </Box>
-        )}
+        sx={{ borderRadius: 2, background: "#fff" }}
+        renderValue={(selected: any) =>
+          selected.length
+            ? selected.join(", ")
+            : "Select Available Days"
+        }
       >
-        {facilitiesOptions.map((name) => (
-          <MenuItem key={name} value={name}>
-            <Checkbox checked={formData.facilities?.includes(name)} />
-            <ListItemText primary={name} />
+        {[
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ].map((day) => (
+          <MenuItem key={day} value={day}>
+            <Checkbox checked={doc.available_days?.includes(day)} />
+            <ListItemText primary={day} />
           </MenuItem>
         ))}
       </Select>
-    </Box>
-  );
-   case 3:
-  return (
-    <Box>
-      <Typography
-        variant="h6"
-        fontWeight="bold"
-        mb={2}
-        display="flex"
-        alignItems="center"
-      >
-        <ContactPhoneIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Contact & Location Details
+    </Grid>
+
+    {/* ================= TIMINGS ================= */}
+    <Grid item xs={12}>
+      <Typography fontWeight="600" mb={2}>
+        Available Timings
       </Typography>
 
-      <Grid container spacing={2}>
-        {/* PHONE */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Phone Number"
-            name="phone"
-            value={formData.phone || ""}
-            onChange={handleChange}
-            inputProps={{ maxLength: 10 }}
-          />
-        </Grid>
-
-        {/* CLINIC ADDRESS */}
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Clinic Address"
-            name="clinic_address"
-            value={formData.clinic_address || ""}
-            onChange={handleChange}
-            multiline
-            rows={2}
-          />
-        </Grid>
-
-        {/* AREA */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Area / Locality"
-            name="area"
-            value={formData.area || ""}
-            onChange={handleChange}
-          />
-        </Grid>
-
-        {/* CITY */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="City"
-            name="city"
-            value={formData.city || ""}
-            onChange={handleChange}
-          />
-        </Grid>
-
-        {/* STATE */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="State"
-            name="state"
-            value={formData.state || ""}
-            onChange={handleChange}
-          />
-        </Grid>
-
-        {/* PINCODE */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Pincode"
-            name="pincode"
-            value={formData.pincode || ""}
-            onChange={handleChange}
-            inputProps={{ maxLength: 6 }}
-          />
-        </Grid>
-
-        {/* LANDMARK */}
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Landmark"
-            name="landmark"
-            value={formData.landmark || ""}
-            onChange={handleChange}
-          />
-        </Grid>
-
-        {/* LATITUDE */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Latitude"
-            name="latitude"
-            value={formData.latitude || ""}
-            onChange={handleChange}
-            placeholder="e.g. 28.6139"
-          />
-        </Grid>
-
-        {/* LONGITUDE */}
-        <Grid item xs={12} md={6}>
-          <TextField
-            fullWidth
-            label="Longitude"
-            name="longitude"
-            value={formData.longitude || ""}
-            onChange={handleChange}
-            placeholder="e.g. 77.2090"
-          />
-        </Grid>
-      </Grid>
-    </Box>
-  );
-   case 4:
-  return (
-    <>
-      <Typography
-        variant="h6"
-        fontWeight="bold"
-        mb={2}
-        display="flex"
-        alignItems="center"
-      >
-        📁 Media Upload
-      </Typography>
-
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3, borderRadius: 3 }}>
-
-            {/* ===== Clinic Logo ===== */}
-            <Grid container spacing={2} alignItems="center" mb={2}>
-              <Grid item xs={4}>
-                <Typography>Clinic Logo</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Button variant="outlined" component="label" fullWidth>
-                  Upload Logo
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) =>
-                      handleFileChange(e, "clinic_logo")
-                    }
-                  />
-                </Button>
-              </Grid>
-            </Grid>
-
-            {/* ===== Clinic Photos ===== */}
-            <Grid container spacing={2} alignItems="center" mb={2}>
-              <Grid item xs={4}>
-                <Typography>Clinic Photos</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Button variant="outlined" component="label" fullWidth>
-                  Upload Photos
-                  <input
-                    type="file"
-                    hidden
-                    multiple
-                    accept="image/*"
-                    onChange={(e) =>
-                      handleFileChange(e, "clinic_photos")
-                    }
-                  />
-                </Button>
-              </Grid>
-            </Grid>
-
-            {/* ===== Doctor Photo ===== */}
-            <Grid container spacing={2} alignItems="center" mb={2}>
-              <Grid item xs={4}>
-                <Typography>Doctor Photo</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Button variant="outlined" component="label" fullWidth>
-                  Upload Doctor Photo
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) =>
-                      handleFileChange(e, "doctor_photo")
-                    }
-                  />
-                </Button>
-              </Grid>
-            </Grid>
-
-            {/* ===== Prescription Sample ===== */}
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={4}>
-                <Typography>Prescription Sample (Optional)</Typography>
-              </Grid>
-              <Grid item xs={8}>
-                <Button variant="outlined" component="label" fullWidth>
-                  Upload Prescription
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*,.pdf"
-                    onChange={(e) =>
-                      handleFileChange(e, "prescription_sample")
-                    }
-                  />
-                </Button>
-              </Grid>
-            </Grid>
-
-          </Paper>
-        </Grid>
-      </Grid>
-    </>
-  );
-    case 5:
-  return (
-    <Box>
-      <Typography
-        variant="h6"
-        fontWeight="bold"
-        mb={2}
-        display="flex"
-        alignItems="center"
-      >
-        <AttachMoneyIcon sx={{ color: "#e91e63", mr: 1 }} />
-        Documents Required
-      </Typography>
-
-      <Grid container spacing={2}>
-
-        {[
-          "Clinic Registration Certificate",
-          "Doctor Medical License",
-          "PAN Card",
-          "Aadhaar Card",
-          "GST (optional)",
-        ].map((doc) => (
-          <Grid item xs={12} md={6} key={doc}>
-            <Paper
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Typography>{doc}</Typography>
-
-              <Button component="label" size="small" variant="outlined">
-                Upload
-                <input
-                  hidden
-                  type="file"
-                  accept="application/pdf,image/*"
-                  onChange={(e: any) =>
-                    setDocuments([
-                      ...documents,
-                      ...Array.from(e.target.files),
-                    ])
-                  }
-                />
-              </Button>
-            </Paper>
-          </Grid>
-        ))}
-
-      </Grid>
-
-      {/* Uploaded Files */}
-      <Box mt={3}>
-        <Typography fontWeight="bold">Uploaded Documents:</Typography>
-
-        {documents.map((doc, i) => (
-          <Typography key={i} fontSize={13}>
-            {doc.name}
-          </Typography>
-        ))}
+      {/* Weekdays */}
+      <Typography fontWeight="500">Mon - Fri</Typography>
+      <Box display="flex" gap={2} mb={2}>
+        <TextField
+          type="time"
+          fullWidth
+          label="Start Time"
+          value={doc.timings.weekdays.start}
+          onChange={(e) =>
+            handleTimingChange(index, "weekdays", "start", e.target.value)
+          }
+        />
+        <TextField
+          type="time"
+          fullWidth
+          label="End Time"
+          value={doc.timings.weekdays.end}
+          onChange={(e) =>
+            handleTimingChange(index, "weekdays", "end", e.target.value)
+          }
+        />
       </Box>
-    </Box>
-  );
-    default:
-      return null;
-  }
-};
 
-  return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #fce4ec, #e3f2fd)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        p: 2,
-      }}
-    >
-      <Paper
-        elevation={6}
-        sx={{
-          width: "100%",
-          maxWidth: 900,
-          p: 4,
-          borderRadius: 4,
-        }}
-      >
-        {/* ✅ HEADER CARD */}
-        <Box
-          sx={{
-            p: 2,
-            mb: 3,
-            borderRadius: 3,
-            background: "linear-gradient(90deg, #e91e63, #9c27b0)",
-            color: "#fff",
-            textAlign: "center",
-          }}
+      {/* Saturday */}
+      <Typography fontWeight="500">Saturday</Typography>
+      <Box display="flex" gap={2} mb={2}>
+        <TextField
+          type="time"
+          fullWidth
+          label="Start Time"
+          value={doc.timings.saturday.start}
+          onChange={(e) =>
+            handleTimingChange(index, "saturday", "start", e.target.value)
+          }
+        />
+        <TextField
+          type="time"
+          fullWidth
+          label="End Time"
+          value={doc.timings.saturday.end}
+          onChange={(e) =>
+            handleTimingChange(index, "saturday", "end", e.target.value)
+          }
+        />
+      </Box>
+
+      {/* Sunday */}
+      <Typography fontWeight="500">Sunday</Typography>
+      <Box display="flex" gap={2} mb={2}>
+        <TextField
+          type="time"
+          fullWidth
+          label="Start Time"
+          value={doc.timings.sunday.start}
+          onChange={(e) =>
+            handleTimingChange(index, "sunday", "start", e.target.value)
+          }
+        />
+        <TextField
+          type="time"
+          fullWidth
+          label="End Time"
+          value={doc.timings.sunday.end}
+          onChange={(e) =>
+            handleTimingChange(index, "sunday", "end", e.target.value)
+          }
+        />
+      </Box>
+
+      {/* Emergency */}
+      <Box mt={2}>
+        <Button
+          variant={doc.timings.emergency ? "contained" : "outlined"}
+          color="error"
+          onClick={() => handleEmergencyToggle(index)}
         >
-          <Typography variant="h5" fontWeight="bold">
-            {getCategory()}
-          </Typography>
-          <Typography variant="body2">
-            {getSubCategory()}
-          </Typography>
-        </Box>
+          {doc.timings.emergency
+            ? "Emergency Available"
+            : "Enable Emergency"}
+        </Button>
+      </Box>
+    </Grid>
 
-       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
-  {steps.map((label, index) => (
-    <Step key={label}>
-      <StepLabel
-        onClick={() => setActiveStep(index)}
-        sx={{
-          cursor: "pointer",
-          "& .MuiStepLabel-label": {
-            fontWeight: activeStep === index ? "bold" : "normal",
-          },
-        }}
+    {/* Remove Doctor */}
+    <Grid item xs={12}>
+      <Button
+        color="error"
+        variant="outlined"
+        fullWidth
+        onClick={() => removeDoctor(index)}
       >
-        {label}
-      </StepLabel>
-    </Step>
-  ))}
-</Stepper>
-{/* ✅ FORM CONTENT */}
-<Box
-  sx={{
-    mt: 2,
-    minHeight: 250,
-    transition: "all 0.3s ease",
-  }}
->
-  {renderStepContent()}
-</Box>
+        Remove Doctor
+      </Button>
+    </Grid>
 
-{/* ✅ STEP INFO */}
-<Typography
-  variant="body2"
-  color="text.secondary"
-  sx={{ mt: 2, textAlign: "center" }}
->
-  Step {activeStep + 1} of {steps.length}
+      </Grid>
+    </Paper>
+  ))}
+
+  {/* Add Doctor Button */}
+  <Button variant="contained" onClick={addDoctor}>
+    Add Doctor
+  </Button>
+</Paper>
+   
+{/* ================= CONSULTATION FEES ================= */}
+
+<Typography variant="h6" fontWeight="bold" mt={4} mb={2}>
+  Consultation Fees
 </Typography>
 
-{/* ✅ ACTION BUTTONS (STICKY FOOTER STYLE) */}
-<Box
-  sx={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    mt: 4,
-    pt: 2,
-    borderTop: "1px solid #eee",
-  }}
+<TextField
+  fullWidth
+  label="Consultation Fees"
+  name="consultation_fees"
+  value={formData.consultation_fees || ""}
+  onChange={handleChange}
+/>
+<Typography variant="h6" fontWeight="bold" mt={4} mb={2}>
+  Facilities & Amenities
+</Typography>
+
+<Select
+  multiple
+  fullWidth
+  value={formData.amenities || []}
+  onChange={(e) =>
+    setFormData({
+      ...formData,
+      amenities: e.target.value,
+    })
+  }
 >
-  {/* LEFT SIDE */}
-  <Box>
-    <Button
-      variant="outlined"
-      disabled={activeStep === 0}
-      onClick={handleBack}
-      sx={{ borderRadius: 2, mr: 2 }}
-    >
-      Back
-    </Button>
+  {amenitiesOptions.map((item) => (
+    <MenuItem key={item} value={item}>
+      <Checkbox checked={formData.amenities?.includes(item)} />
+      <ListItemText primary={item} />
+    </MenuItem>
+  ))}
+</Select>
+{/* ================= CONTACT INFORMATION ================= */}
 
-    <Button
-      variant="outlined"
-      onClick={handleSaveDraft}
-      sx={{ borderRadius: 2, mr: 2 }}
-    >
-      Save Draft
-    </Button>
+<Typography variant="h6" fontWeight="bold" mt={4} mb={2}>
+  Contact Information
+</Typography>
 
-    <Button
-      variant="outlined"
-      color="error"
-      onClick={handleResetDraft}
-      sx={{ borderRadius: 2 }}
-    >
-      Reset Draft
-    </Button>
-  </Box>
+<Paper sx={{ p: 3, borderRadius: 2, border: "1px solid #e0e0e0" }}>
+  <Grid container spacing={3} direction="column">
 
-  {/* RIGHT SIDE */}
-  <Box>
-    {activeStep < steps.length - 1 && (
-      <Button
-        variant="contained"
-        onClick={handleNext}
+    {/* Phone Number */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="Phone Number"
+        name="phone"
+        value={formData.phone || ""}
+        onChange={handleChange}
+      />
+    </Grid>
+
+    {/* WhatsApp Number */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="WhatsApp Number"
+        name="whatsapp"
+        value={formData.whatsapp || ""}
+        onChange={handleChange}
+      />
+    </Grid>
+
+    {/* Email */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="Email"
+        name="email"
+        type="email"
+        value={formData.email || ""}
+        onChange={handleChange}
+      />
+    </Grid>
+
+    {/* Website */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="Website"
+        name="website"
+        value={formData.website || ""}
+        onChange={handleChange}
+      />
+    </Grid>
+
+    {/* Address */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        multiline
+        rows={3}
+        label="Address"
+        name="clinic_address"
+        value={formData.clinic_address || ""}
+        onChange={handleChange}
+      />
+    </Grid>
+
+    {/* Google Map Location */}
+    <Grid item xs={12}>
+      <TextField
+        fullWidth
+        label="Google Map Location (URL)"
+        name="map_location"
+        value={formData.map_location || ""}
+        onChange={handleChange}
+        placeholder="Paste Google Maps link"
+      />
+    </Grid>
+
+    {/* Get Direction Button */}
+    {formData.map_location && (
+      <Grid item xs={12}>
+        <Button
+          variant="contained"
+          color="primary"
+          fullWidth
+          href={formData.map_location}
+          target="_blank"
+        >
+          Get Directions
+        </Button>
+      </Grid>
+    )}
+
+  </Grid>
+</Paper>
+{/* ================= INSURANCE & PAYMENTS ================= */}
+
+<Typography variant="h6" fontWeight="bold" mt={4} mb={2}>
+  Insurance & Payments
+</Typography>
+
+<Paper sx={{ p: 3, borderRadius: 2, border: "1px solid #e0e0e0" }}>
+
+  {/* Payment Methods */}
+  <Typography fontWeight="600" mb={1}>
+    Payment Methods
+  </Typography>
+
+  <Select
+    multiple
+    fullWidth
+    value={formData.payment_methods || []}
+    onChange={(e) =>
+      setFormData({
+        ...formData,
+        payment_methods: e.target.value,
+      })
+    }
+    renderValue={(selected: any) =>
+      selected.length ? selected.join(", ") : "Select Payment Methods"
+    }
+    sx={{ mb: 3 }}
+  >
+    {paymentOptions.map((item) => (
+      <MenuItem key={item} value={item}>
+        <Checkbox checked={formData.payment_methods?.includes(item)} />
+        <ListItemText primary={item} />
+      </MenuItem>
+    ))}
+  </Select>
+
+  {/* Insurance Options */}
+  <Typography fontWeight="600" mb={1}>
+    Insurance Accepted
+  </Typography>
+
+  <Select
+    multiple
+    fullWidth
+    value={formData.insurance || []}
+    onChange={(e) =>
+      setFormData({
+        ...formData,
+        insurance: e.target.value,
+      })
+    }
+    renderValue={(selected: any) =>
+      selected.length ? selected.join(", ") : "Select Insurance"
+    }
+  >
+    {insuranceOptions.map((item) => (
+      <MenuItem key={item} value={item}>
+        <Checkbox checked={formData.insurance?.includes(item)} />
+        <ListItemText primary={item} />
+      </MenuItem>
+    ))}
+  </Select>
+
+</Paper>
+      {/* ================= ACTION BUTTONS ================= */}
+
+      <Box
         sx={{
-          borderRadius: 2,
-          background: "linear-gradient(90deg, #e91e63, #9c27b0)",
+          display: "flex",
+          justifyContent: "center",
+          gap: 2,
+          mt: 4,
+          pt: 2,
+          borderTop: "1px solid #eee",
         }}
       >
-        Next →
-      </Button>
-    )}
+        <Button variant="outlined" onClick={handleSaveDraft}>
+          Save Draft
+        </Button>
 
-    {activeStep === steps.length - 1 && (
-      <Button
-        variant="contained"
-        color="success"
-        onClick={handleSubmit}
-        sx={{ borderRadius: 2 }}
-      >
-        Submit ✅
-      </Button>
-    )}
+        <Button variant="outlined" color="error" onClick={handleResetDraft}>
+          Reset Draft
+        </Button>
+
+        <Button variant="contained" color="success" onClick={handleSubmit}>
+          Submit
+        </Button>
+      </Box>
+
+    </Paper>
+    <Snackbar
+  open={openSuccess}
+  autoHideDuration={3000}
+  onClose={() => setOpenSuccess(false)}
+  anchorOrigin={{ vertical: "top", horizontal: "center" }}
+>
+  <Alert
+    onClose={() => setOpenSuccess(false)}
+    severity="success"
+    variant="filled"
+    sx={{ width: "100%" }}
+  >
+    {successMsg}
+  </Alert>
+</Snackbar>
   </Box>
-</Box>
-    {/* RIGHT SIDE */}
-   </Paper>
-    </Box>
   );
-}
+  };

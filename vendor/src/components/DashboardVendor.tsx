@@ -31,6 +31,7 @@ export default function DashboardVendor() {
           <SidebarItem icon={Package} label="Orders" to="/dashboard/vendor/orders" />
           <SidebarItem icon={Package} label="Customers" to="/dashboard/vendor/customerlists" />
           <SidebarItem icon={Package} label="Business Profile" to="/dashboard/vendor/dynamic-form" />
+           <SidebarItem icon={Package} label="Clinic Details" to="/dashboard/vendor/clinic/:id" />
         </nav>
 
         {/* BOTTOM LOGOUT (ALWAYS VISIBLE) */}
